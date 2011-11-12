@@ -5,6 +5,19 @@ This tool emulates an ideally slow network by mocking the
 polling and read/write syscalls exposed by glibc via the
 LD_PRELOAD technique.
 
+By preloading this dynamic library to your network server
+process, it will intercept the "poll", "close", and "writev"
+syscalls, only allow writev to actually write a single byte
+at a time (without flushing), and returns EAGAIN until another
+"poll" called on the current socket fd.
+
+The socket fd must be called first by a "poll" call to mark
+itself to this tool as an "active fd" and trigger subsequence
+writev to behave differently.
+
+With this tool, one can emulate extreme network conditions
+even locally (with the loopback device).
+
 Build
 =====
 
@@ -40,6 +53,7 @@ Here we take Nginx as an example:
 
 TODO
 
+* add support for write, sendto, and more writing syscalls.
 * add support for other event interfaces like epoll, select, kqueue, and more.
-* add support for slow read mocking.
+* add support for slow read mocking, like the recvfrom syscall.
 
