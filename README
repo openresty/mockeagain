@@ -6,14 +6,14 @@ polling and read/write syscalls exposed by glibc via the
 LD_PRELOAD technique.
 
 By preloading this dynamic library to your network server
-process, it will intercept the "poll", "close", and "writev"
-syscalls, only allow writev to actually write a single byte
+process, it will intercept the "poll", "close", "send", and "writev"
+syscalls, only allow the writing syscalls to actually write a single byte
 at a time (without flushing), and returns EAGAIN until another
 "poll" called on the current socket fd.
 
 The socket fd must be called first by a "poll" call to mark
 itself to this tool as an "active fd" and trigger subsequence
-writev to behave differently.
+the writing syscalls to behave differently.
 
 With this tool, one can emulate extreme network conditions
 even locally (with the loopback device).
