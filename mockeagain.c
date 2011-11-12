@@ -37,7 +37,7 @@ static char polled_fds[MAX_FDS];
 #   define init_libc_handle() \
         libc_handle = dlopen("libc.so.6", RTLD_LAZY); \
         if (libc_handle == NULL) { \
-            fprintf(stderr, "slowrites: could not load libc.so.6: %s\n", \
+            fprintf(stderr, "mockeagain: could not load libc.so.6: %s\n", \
                     dlerror()); \
             exit(1); \
         }
@@ -46,13 +46,11 @@ static char polled_fds[MAX_FDS];
 
 typedef int (*poll_handle) (struct pollfd *ufds, unsigned int nfds,
     int timeout);
-
-
 typedef ssize_t (*writev_handle) (int fildes, const struct iovec *iov,
     int iovcnt);
-
-
 typedef int (*close_handle) (int fd);
+typedef ssize_t (*send_handle) (int sockfd, const void *buf, size_t len,
+    int flags);
 
 
 int
@@ -70,7 +68,7 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
     if (orig_poll == NULL) {
         orig_poll = dlsym(libc_handle, "poll");
         if (orig_poll == NULL) {
-            fprintf(stderr, "slowrites: could not find the underlying poll: "
+            fprintf(stderr, "mockeagain: could not find the underlying poll: "
                     "%s\n", dlerror());
             exit(1);
         }
@@ -115,7 +113,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     if (orig_writev == NULL) {
         orig_writev = dlsym(libc_handle, "writev");
         if (orig_writev == NULL) {
-            fprintf(stderr, "slowrites: could not find the underlying writev: "
+            fprintf(stderr, "mockeagain: could not find the underlying writev: "
                     "%s\n", dlerror());
             exit(1);
         }
@@ -158,7 +156,7 @@ close(int fd)
     if (orig_close == NULL) {
         orig_close = dlsym(libc_handle, "close");
         if (orig_close == NULL) {
-            fprintf(stderr, "slowrites: could not find the underlying close: "
+            fprintf(stderr, "mockeagain: could not find the underlying close: "
                     "%s\n", dlerror());
             exit(1);
         }
@@ -174,6 +172,41 @@ close(int fd)
     }
 
     retval = (*orig_close)(fd);
+
+    return retval;
+}
+
+
+ssize_t
+send(int fd, const void *buf, size_t len, int flags)
+{
+    ssize_t                  retval;
+    static send_handle       orig_send = NULL;
+
+    if (fd <= MAX_FDS && polled_fds[fd - 1] && !(active_fds[fd - 1] & POLLOUT)) {
+        errno = EAGAIN;
+        return -1;
+    }
+
+    init_libc_handle();
+
+    if (orig_send == NULL) {
+        orig_send = dlsym(libc_handle, "send");
+        if (orig_send == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying send: "
+                    "%s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    if (fd <= MAX_FDS && polled_fds[fd - 1] && len) {
+        dd("calling the original send on fd %d", fd);
+        retval = (*orig_send)(fd, buf, 1, flags);
+        active_fds[fd - 1] &= ~POLLOUT;
+
+    } else {
+        retval = (*orig_send)(fd, buf, len, flags);
+    }
 
     return retval;
 }
