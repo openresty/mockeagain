@@ -1,6 +1,6 @@
 .PHONY: all
 
-all: slowrites.so
+all: mockeagain.so
 
 %.so: %.c
 	$(CC) -Wall -Werror -fPIC -shared $< -o $@ -ldl
