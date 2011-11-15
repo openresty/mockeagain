@@ -20,12 +20,12 @@
 #endif
 
 
-#define MAX_FDS 1024
+#define MAX_FD 1024
 
 
 static void *libc_handle = NULL;
-static short active_fds[MAX_FDS];
-static char polled_fds[MAX_FDS];
+static short active_fds[MAX_FD + 1];
+static char  polled_fds[MAX_FD + 1];
 
 
 #if defined(RTLD_NEXT)
@@ -82,11 +82,11 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
         p = ufds;
         for (i = 0; i < nfds; i++, p++) {
             fd = p->fd;
-            if (fd > MAX_FDS) {
+            if (fd > MAX_FD) {
                 continue;
             }
-            active_fds[fd - 1] = p->revents;
-            polled_fds[fd - 1] = 1;
+            active_fds[fd] = p->revents;
+            polled_fds[fd] = 1;
         }
     }
 
@@ -103,7 +103,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     const struct iovec      *p;
     int                      i;
 
-    if (fd <= MAX_FDS && polled_fds[fd - 1] && !(active_fds[fd - 1] & POLLOUT)) {
+    if (fd <= MAX_FD && polled_fds[fd] && !(active_fds[fd] & POLLOUT)) {
         errno = EAGAIN;
         return -1;
     }
@@ -119,7 +119,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
         }
     }
 
-    if (fd <= MAX_FDS && polled_fds[fd - 1]) {
+    if (fd <= MAX_FD && polled_fds[fd]) {
         p = iov;
         for (i = 0; i < iovcnt; i++, p++) {
             if (p->iov_base == NULL || p->iov_len == 0) {
@@ -138,7 +138,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     } else {
         dd("calling the original writev on fd %d", fd);
         retval = (*orig_writev)(fd, new_iov, 1);
-        active_fds[fd - 1] &= ~POLLOUT;
+        active_fds[fd] &= ~POLLOUT;
     }
 
     return retval;
@@ -162,13 +162,13 @@ close(int fd)
         }
     }
 
-    if (fd <= MAX_FDS) {
-        if (polled_fds[fd - 1]) {
+    if (fd <= MAX_FD) {
+        if (polled_fds[fd]) {
             dd("calling the original close on fd %d", fd);
         }
 
-        active_fds[fd - 1] = 0;
-        polled_fds[fd - 1] = 0;
+        active_fds[fd] = 0;
+        polled_fds[fd] = 0;
     }
 
     retval = (*orig_close)(fd);
@@ -183,7 +183,7 @@ send(int fd, const void *buf, size_t len, int flags)
     ssize_t                  retval;
     static send_handle       orig_send = NULL;
 
-    if (fd <= MAX_FDS && polled_fds[fd - 1] && !(active_fds[fd - 1] & POLLOUT)) {
+    if (fd <= MAX_FD && polled_fds[fd] && !(active_fds[fd] & POLLOUT)) {
         errno = EAGAIN;
         return -1;
     }
@@ -199,10 +199,10 @@ send(int fd, const void *buf, size_t len, int flags)
         }
     }
 
-    if (fd <= MAX_FDS && polled_fds[fd - 1] && len) {
+    if (fd <= MAX_FD && polled_fds[fd] && len) {
         dd("calling the original send on fd %d", fd);
         retval = (*orig_send)(fd, buf, 1, flags);
-        active_fds[fd - 1] &= ~POLLOUT;
+        active_fds[fd] &= ~POLLOUT;
 
     } else {
         retval = (*orig_send)(fd, buf, len, flags);
