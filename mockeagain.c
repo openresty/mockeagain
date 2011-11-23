@@ -53,6 +53,9 @@ typedef ssize_t (*send_handle) (int sockfd, const void *buf, size_t len,
     int flags);
 
 
+static int get_verbose_level();
+
+
 int
 poll(struct pollfd *ufds, nfds_t nfds, int timeout)
 {
@@ -104,6 +107,11 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     int                      i;
 
     if (fd <= MAX_FD && polled_fds[fd] && !(active_fds[fd] & POLLOUT)) {
+        if (get_verbose_level()) {
+            fprintf(stderr, "mockeagain: mocking \"writev\" on fd %d to "
+                    "signal EAGAIN\n", fd);
+        }
+
         errno = EAGAIN;
         return -1;
     }
@@ -136,6 +144,11 @@ writev(int fd, const struct iovec *iov, int iovcnt)
         retval = (*orig_writev)(fd, iov, iovcnt);
 
     } else {
+        if (get_verbose_level()) {
+            fprintf(stderr, "mockeagain: mocking \"writev\" on fd %d to emit "
+                    "1 byte of data only\n", fd);
+        }
+
         dd("calling the original writev on fd %d", fd);
         retval = (*orig_writev)(fd, new_iov, 1);
         active_fds[fd] &= ~POLLOUT;
@@ -184,6 +197,11 @@ send(int fd, const void *buf, size_t len, int flags)
     static send_handle       orig_send = NULL;
 
     if (fd <= MAX_FD && polled_fds[fd] && !(active_fds[fd] & POLLOUT)) {
+        if (get_verbose_level()) {
+            fprintf(stderr, "mockeagain: mocking \"send\" on fd %d to "
+                    "signal EAGAIN\n", fd);
+        }
+
         errno = EAGAIN;
         return -1;
     }
@@ -200,7 +218,13 @@ send(int fd, const void *buf, size_t len, int flags)
     }
 
     if (fd <= MAX_FD && polled_fds[fd] && len) {
+        if (get_verbose_level()) {
+            fprintf(stderr, "mockeagain: mocking \"send\" on fd %d to emit "
+                    "1 byte of data only\n", fd);
+        }
+
         dd("calling the original send on fd %d", fd);
+
         retval = (*orig_send)(fd, buf, 1, flags);
         active_fds[fd] &= ~POLLOUT;
 
@@ -209,5 +233,26 @@ send(int fd, const void *buf, size_t len, int flags)
     }
 
     return retval;
+}
+
+
+static int
+get_verbose_level()
+{
+    const char          *p;
+
+    p = getenv("MOCKEAGAIN_VERBOSE");
+    if (p == NULL || *p == '\0') {
+        dd("verbose env empty");
+        return 0;
+    }
+
+    if (*p >= '0' && *p <= '9') {
+        dd("verbose env value: %s", p);
+        return *p - '0';
+    }
+
+    dd("bad verbose env value: %s", p);
+    return 0;
 }
 
