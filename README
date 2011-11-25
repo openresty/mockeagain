@@ -48,9 +48,17 @@ Here we take Nginx as an example:
 
     postpone_output 1; # only postpone a single byte, default 1460 bytes
 
+and also have the following line in your nginx.conf:
+
+    env LD_PRELOAD;
+
 4. Run your Nginx this way:
 
     LD_PRELOAD=/path/to/mockeagain.so /path/to/nginx ...
+
+5. You can also set the environment MOCKEAGAIN_VERBOSE to 1 if you want more diagnostical outputs of this tool in stderr. But you'll also have to add the following line to your nginx.conf:
+
+    env MOCKEAGAIN_VERBOSE;
 
 TODO
 ====
