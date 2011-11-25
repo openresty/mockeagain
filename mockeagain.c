@@ -105,6 +105,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     struct iovec             new_iov[1] = { {NULL, 0} };
     const struct iovec      *p;
     int                      i;
+    size_t                   len;
 
     if (fd <= MAX_FD && polled_fds[fd] && !(active_fds[fd] & POLLOUT)) {
         if (get_verbose_level()) {
@@ -138,6 +139,12 @@ writev(int fd, const struct iovec *iov, int iovcnt)
             new_iov[0].iov_len = 1;
             break;
         }
+
+        len = 0;
+        p = iov;
+        for (i = 0; i < iovcnt; i++, p++) {
+            len += p->iov_len;
+        }
     }
 
     if (new_iov[0].iov_base == NULL) {
@@ -146,7 +153,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     } else {
         if (get_verbose_level()) {
             fprintf(stderr, "mockeagain: mocking \"writev\" on fd %d to emit "
-                    "1 byte of data only\n", fd);
+                    "1 of %llu bytes\n", fd, (unsigned long long) len);
         }
 
         dd("calling the original writev on fd %d", fd);
