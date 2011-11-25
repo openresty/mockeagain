@@ -110,7 +110,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     if (fd <= MAX_FD && polled_fds[fd] && !(active_fds[fd] & POLLOUT)) {
         if (get_verbose_level()) {
             fprintf(stderr, "mockeagain: mocking \"writev\" on fd %d to "
-                    "signal EAGAIN\n", fd);
+                    "signal EAGAIN.\n", fd);
         }
 
         errno = EAGAIN;
@@ -153,7 +153,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     } else {
         if (get_verbose_level()) {
             fprintf(stderr, "mockeagain: mocking \"writev\" on fd %d to emit "
-                    "1 of %llu bytes\n", fd, (unsigned long long) len);
+                    "1 of %llu bytes.\n", fd, (unsigned long long) len);
         }
 
         dd("calling the original writev on fd %d", fd);
