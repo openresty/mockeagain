@@ -3,7 +3,7 @@
 all: mockeagain.so
 
 %.so: %.c
-	$(CC) -Wall -Werror -fPIC -shared $< -o $@ -ldl
+	$(CC) -g -Wall -Werror -fPIC -shared $< -o $@ -ldl
 
 clean:
 	rm -rf *.so *.o *.lo
