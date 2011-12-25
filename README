@@ -25,7 +25,9 @@ Just issue the following command to build the file mockeagain.so
 
     make
 
-The gcc compiler is required.
+The Gnu make and gcc compiler are required.
+
+On *BSD, it's often required to run the command "gmake".
 
 Usage
 =====

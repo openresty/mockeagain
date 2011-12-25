@@ -35,20 +35,10 @@ static const char *pattern = NULL;
 static int verbose = -1;
 
 
-#if defined(RTLD_NEXT)
 #   define init_libc_handle() \
         if (libc_handle == NULL) { \
             libc_handle = RTLD_NEXT; \
         }
-#else
-#   define init_libc_handle() \
-        libc_handle = dlopen("libc.so.6", RTLD_LAZY); \
-        if (libc_handle == NULL) { \
-            fprintf(stderr, "mockeagain: could not load libc.so.6: %s\n", \
-                    dlerror()); \
-            exit(1); \
-        }
-#endif
 
 
 typedef int (*poll_handle) (struct pollfd *ufds, unsigned int nfds,
