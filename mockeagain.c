@@ -3,6 +3,7 @@
 #endif
 
 #define _GNU_SOURCE
+#include <sys/types.h>
 #include <sys/poll.h>
 #include <sys/uio.h>
 #include <sys/time.h>
