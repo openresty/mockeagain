@@ -105,6 +105,11 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
 
             if (pattern && (p->revents & POLLOUT) && snd_timeout_fds[fd]) {
 
+                if (get_verbose_level()) {
+                    fprintf(stderr, "mockeagain: poll: should suppress write "
+                            "event on fd %d.\n", fd);
+                }
+
                 p->revents &= ~POLLOUT;
 
                 if (p->revents == 0) {
@@ -246,6 +251,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
 
                 if (len < matchbuf_len - 1) {
                     p[len] = c;
+                    len++;
 
                 } else {
                     memmove(p, p + 1, matchbuf_len - 2);
@@ -256,7 +262,8 @@ writev(int fd, const struct iovec *iov, int iovcnt)
 
             /* test if the pattern matches the matchbuf */
 
-            dd("matchbuf: %.*s", (int) len, p);
+            dd("matchbuf: %.*s (len: %d)", (int) len, p,
+                    (int) matchbuf_len - 1);
 
             if (len == matchbuf_len - 1 && strncmp(p, pattern, len) == 0) {
                 if (get_verbose_level()) {
