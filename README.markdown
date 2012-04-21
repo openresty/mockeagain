@@ -11,6 +11,11 @@ syscalls, only allow the writing syscalls to actually write a single byte
 at a time (without flushing), and returns EAGAIN until another
 "poll" called on the current socket fd.
 
+Similarly, one can configure this library to intercept the "read",
+"recv", "recvfrom" calls on the C level to emulate extremely slow
+reading operations either with or without slow writes at the same
+time.
+
 The socket fd must be called first by a "poll" call to mark
 itself to this tool as an "active fd" and trigger subsequence
 the writing syscalls to behave differently.
