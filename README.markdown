@@ -129,7 +129,6 @@ TODO
 
 * add support for write, sendto, and more writing syscalls.
 * add support for other event interfaces like epoll, select, kqueue, and more.
-* add support for slow read mocking, like the recvfrom syscall.
 
 Success Stories
 ===============
