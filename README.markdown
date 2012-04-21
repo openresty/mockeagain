@@ -23,6 +23,9 @@ the writing syscalls to behave differently.
 With this tool, one can emulate extreme network conditions
 even locally (with the loopback device).
 
+This tool is intended to supersed the good old
+[etcproxy](https://github.com/chaoslawful/etcproxy) tool.
+
 Build
 =====
 
