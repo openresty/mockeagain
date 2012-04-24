@@ -33,7 +33,7 @@ static short active_fds[MAX_FD + 1];
 static char  polled_fds[MAX_FD + 1];
 static char  snd_timeout_fds[MAX_FD + 1];
 static char **matchbufs = NULL;
-static size_t matchbuf_len = -1;
+static size_t matchbuf_len = 0;
 static const char *pattern = NULL;
 static int verbose = -1;
 static int mocking_type = -1;
@@ -652,7 +652,7 @@ init_matchbufs()
     const char          *p;
     int                  len;
 
-    if (matchbuf_len >= 0 || matchbufs != NULL) {
+    if (matchbufs != NULL) {
         return;
     }
 
