@@ -31,6 +31,7 @@
 static void *libc_handle = NULL;
 static short active_fds[MAX_FD + 1];
 static char  polled_fds[MAX_FD + 1];
+static char  weird_fds[MAX_FD + 1];
 static char  snd_timeout_fds[MAX_FD + 1];
 static char **matchbufs = NULL;
 static size_t matchbuf_len = 0;
@@ -50,6 +51,8 @@ enum {
             libc_handle = RTLD_NEXT; \
         }
 
+
+typedef int (*socket_handle) (int domain, int type, int protocol);
 
 typedef int (*poll_handle) (struct pollfd *ufds, unsigned int nfds,
     int timeout);
@@ -75,6 +78,58 @@ static int get_verbose_level();
 static void init_matchbufs();
 static int now();
 static int get_mocking_type();
+
+
+int socket(int domain, int type, int protocol)
+{
+    int                        fd;
+    static socket_handle       orig_socket = NULL;
+
+    dd("calling my socket");
+
+    init_libc_handle();
+
+    if (orig_socket == NULL) {
+        orig_socket = dlsym(libc_handle, "socket");
+        if (orig_socket == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying socket: "
+                    "%s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    init_matchbufs();
+
+    fd = (*orig_socket)(domain, type, protocol);
+
+    dd("socket with type %d (SOCK_STREAM %d, SOCK_DGRAM %d)", type,
+            SOCK_STREAM, SOCK_DGRAM);
+
+    if (fd <= MAX_FD) {
+        if (!(type & SOCK_STREAM)) {
+            dd("socket: the current fd is weird: %d", fd);
+            weird_fds[fd] = 1;
+
+        } else {
+            weird_fds[fd] = 0;
+        }
+
+#if 1
+        if (matchbufs && matchbufs[fd]) {
+            free(matchbufs[fd]);
+            matchbufs[fd] = NULL;
+        }
+#endif
+
+        active_fds[fd] = 0;
+        polled_fds[fd] = 0;
+        snd_timeout_fds[fd] = 0;
+    }
+
+    dd("socket returning %d", fd);
+
+    return fd;
+}
 
 
 int
@@ -122,7 +177,8 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
         p = ufds;
         for (i = 0; i < nfds; i++, p++) {
             fd = p->fd;
-            if (fd > MAX_FD) {
+            if (fd > MAX_FD || weird_fds[fd]) {
+                dd("skipping fd %d", fd);
                 continue;
             }
 
@@ -333,9 +389,11 @@ close(int fd)
     }
 
     if (fd <= MAX_FD) {
+#if (DDEBUG)
         if (polled_fds[fd]) {
             dd("calling the original close on fd %d", fd);
         }
+#endif
 
         if (matchbufs && matchbufs[fd]) {
             free(matchbufs[fd]);
@@ -345,6 +403,7 @@ close(int fd)
         active_fds[fd] = 0;
         polled_fds[fd] = 0;
         snd_timeout_fds[fd] = 0;
+        weird_fds[fd] = 0;
     }
 
     retval = (*orig_close)(fd);

@@ -179,7 +179,7 @@ libdrizzle
 libdrizzle 0.8 and earlier had a subtle bug in its MySQL packet parser
 and mockeagain's reading mode can capture it reliably even on localhost.
 
-To reproduce, just compile libdrizzle 0.8 with ngx_drizzle, and run the t/keepalive.t test file in ngx_drizzle's test suite
+To reproduce, just compile libdrizzle 0.8 with ngx_drizzle, and run the t/sanity.t test file in ngx_drizzle's test suite
 with mockeagain's reading mode enabled.
 
 Author
