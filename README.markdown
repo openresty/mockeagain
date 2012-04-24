@@ -182,6 +182,14 @@ and mockeagain's reading mode can capture it reliably even on localhost.
 To reproduce, just compile libdrizzle 0.8 with ngx_drizzle, and run the t/sanity.t test file in ngx_drizzle's test suite
 with mockeagain's reading mode enabled.
 
+ngx_lua
+-------
+
+The downstream cosocket API did have a bug in its receive(size) method call that was caught by mockeagain in its reading mode.
+
+To reproduce, check out ngx_lua v0.5.0rc24 and run its t/067-req-socket.t test file
+with "MOCKEAGAIN=R" and TEST 1 will just hang.
+
 Author
 ======
 
