@@ -652,7 +652,7 @@ get_mocking_type() {
     p = getenv("MOCKEAGAIN");
     if (p == NULL || *p == '\0') {
         dd("MOCKEAGAIN env empty");
-        mocking_type = MOCKING_WRITES;
+        /* mocking_type = MOCKING_WRITES; */
         return mocking_type;
     }
 

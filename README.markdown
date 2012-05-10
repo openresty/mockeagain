@@ -64,7 +64,7 @@ and also have the following line in your nginx.conf:
 
 4. Run your Nginx this way:
 
-    LD_PRELOAD=/path/to/mockeagain.so /path/to/nginx ...
+    MOCKEAGAIN=w LD_PRELOAD=/path/to/mockeagain.so /path/to/nginx ...
 
 Environments
 ============
@@ -90,7 +90,7 @@ When the letter "r" or "R" appear in the value string, then reads will be mocked
 
 When the letter "w" or "W" appear in the value string, then writes will be mocked.
 
-When this environment is either not set or set to an empty string, then writes will be mocked by default.
+When this environment is either not set or set to something unrecognized, then no mocking will be performed.
 
 MOCKEAGAIN_VERBOSE
 ------------------
