@@ -199,6 +199,11 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
 
             active_fds[fd] = p->revents;
             polled_fds[fd] = 1;
+
+            if (get_verbose_level()) {
+                fprintf(stderr, "mockeagain: poll: fd %d polled with events "
+                        "%d\n", fd, p->revents);
+            }
         }
 
         if (retval == 0) {
