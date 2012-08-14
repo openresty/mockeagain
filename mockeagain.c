@@ -109,7 +109,7 @@ static int get_verbose_level();
 static void init_matchbufs();
 static int now();
 static int get_mocking_type();
-static int is_whitelist();
+static int is_whitelisted();
 static int get_whitelist();
 
 #define WHITELIST_UNSET 0x00
@@ -298,7 +298,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     size_t                   len;
 
 
-    if (is_whitelist()) {
+    if (is_whitelisted()) {
         call_original("writev", orig_writev, fd, iov, iovcnt);
         return retval;
     }
@@ -427,7 +427,7 @@ close(int fd)
     int                     retval;
     static close_handle     orig_close = NULL;
 
-    if (is_whitelist()) {
+    if (is_whitelisted()) {
         call_original("close", orig_close, fd);
         return retval;
     }
@@ -475,7 +475,7 @@ send(int fd, const void *buf, size_t len, int flags)
 
     dd("calling my send");
 
-    if (is_whitelist()) {
+    if (is_whitelisted()) {
         call_original("send", orig_send, fd, buf, len, flags);
         return retval;
     }
@@ -537,7 +537,7 @@ read(int fd, void *buf, size_t len)
 
     dd("calling my read");
 
-    if (is_whitelist()) {
+    if (is_whitelisted()) {
         call_original("read", orig_read, fd, buf, len);
         return retval;
     }
@@ -598,7 +598,7 @@ recv(int fd, void *buf, size_t len, int flags)
 
     dd("calling my recv");
 
-    if (is_whitelist()) {
+    if (is_whitelisted()) {
         call_original("recv", orig_recv, fd, buf, len, flags);
         return retval;
     }
@@ -659,7 +659,7 @@ recvfrom(int fd, void *buf, size_t len, int flags, struct sockaddr *src_addr, so
 
     dd("calling my recvfrom");
 
-    if (is_whitelist()) {
+    if (is_whitelisted()) {
         call_original("recvfrom", orig_recvfrom,
                       fd, buf, len, flags, src_addr, addrlen);
         return retval;
@@ -831,7 +831,7 @@ now() {
 
 /* Test if a function is whitelisted in the callstack */
 static int
-is_whitelist()
+is_whitelisted()
 {
     const char           delimiters[] = "(+";
     void                *buff[MAX_BACKTRACE];
