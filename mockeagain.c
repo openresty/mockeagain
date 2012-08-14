@@ -118,7 +118,8 @@ static int get_whitelist();
 
 static char whitelist_status = WHITELIST_UNSET;
 
-int socket(int domain, int type, int protocol)
+int
+socket(int domain, int type, int protocol)
 {
     int                        fd;
     static socket_handle       orig_socket = NULL;
@@ -818,7 +819,8 @@ init_matchbufs()
 
 
 /* returns a time in milliseconds */
-static int now() {
+static int
+now() {
    struct timeval tv;
 
    gettimeofday(&tv, NULL);
@@ -828,17 +830,18 @@ static int now() {
 
 
 /* Test if a function is whitelisted in the callstack */
-static int is_whitelist()
+static int
+is_whitelist()
 {
-    const char          delimiters[] = "(+";
+    const char           delimiters[] = "(+";
     void                *buff[MAX_BACKTRACE];
-    char                **symbols;
-    int                 size;
-    int                 i;
+    char               **symbols;
+    int                  size;
+    int                  i;
     char                *token;
-    ENTRY               e;
+    ENTRY                e;
     ENTRY               *ep = NULL;
-    int                 retval = 0;
+    int                  retval = 0;
 
     if (whitelist_status == WHITELIST_UNSET) {
         dd("initializing whitelist");
