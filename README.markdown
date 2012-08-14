@@ -117,6 +117,20 @@ Note that this environment also requires that the MOCKEAGAIN variable value cont
 
 For now, this feature only supports the "writev" call.
 
+MOCKEAGAIN_WL
+-------------
+
+This environment variable can be set to a comma separated list of function names.
+
+If it is set, mockeagain will call the original libc function if one of whitelisted function is found in the call stack.
+
+For example:
+
+    MOCKEAGAIN_WL='ngx_ssl_handshake, ngx_ssl_create' MOCKEAGAIN=rw MOCKEAGAIN_VERBOSE=1 LD_PRELOAD=/path/to/mockeagain.so /path/to/nginx ...
+
+
+Will let you use mockeagain for HTTP (or SPDY) connections, since the first packets for certificate exchange are always expected to be transmitted in a single TCP packet (versus 1 byte at a time).
+
 Glibc API Mocked
 ----------------
 

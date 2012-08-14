@@ -14,6 +14,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <execinfo.h>
+#include <string.h>
+#include <search.h>
 
 #if DDEBUG
 #   define dd(...) \
@@ -26,6 +29,9 @@
 
 
 #define MAX_FD 1024
+
+#define MAX_BACKTRACE 64
+#define MAX_WHITELIST 64
 
 
 static void *libc_handle = NULL;
@@ -50,6 +56,31 @@ enum {
         if (libc_handle == NULL) { \
             libc_handle = RTLD_NEXT; \
         }
+
+
+#define call_original(_symbol, _orig_func, ...)                         \
+do {                                                                    \
+    init_libc_handle();                                                 \
+                                                                        \
+    if (_orig_func == NULL) {                                           \
+        _orig_func = dlsym(libc_handle, _symbol);                       \
+        if (_orig_func == NULL) {                                       \
+            fprintf(stderr, "mockeagain: could not find the underlying" \
+                    " " _symbol ": %s\n", dlerror());                   \
+            exit(1);                                                    \
+        }                                                               \
+    }                                                                   \
+                                                                        \
+    if (get_verbose_level()) {                                          \
+        fprintf(stderr, "mockeagain: calling the original libc:"        \
+                " '" _symbol "'\n");                                    \
+                                                                        \
+    }                                                                   \
+                                                                        \
+    retval = (*_orig_func)(__VA_ARGS__);                                \
+                                                                        \
+ } while (0)
+
 
 
 typedef int (*socket_handle) (int domain, int type, int protocol);
@@ -78,7 +109,14 @@ static int get_verbose_level();
 static void init_matchbufs();
 static int now();
 static int get_mocking_type();
+static int is_whitelist();
+static int get_whitelist();
 
+#define WHITELIST_UNSET 0x00
+#define WHITELIST_ERR   0x01
+#define WHITELIST_OK    0x02
+
+static char whitelist_status = WHITELIST_UNSET;
 
 int socket(int domain, int type, int protocol)
 {
@@ -258,6 +296,12 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     int                      i;
     size_t                   len;
 
+
+    if (is_whitelist()) {
+        call_original("writev", orig_writev, fd, iov, iovcnt);
+        return retval;
+    }
+
     if ((get_mocking_type() & MOCKING_WRITES)
         && fd <= MAX_FD
         && polled_fds[fd]
@@ -382,6 +426,11 @@ close(int fd)
     int                     retval;
     static close_handle     orig_close = NULL;
 
+    if (is_whitelist()) {
+        call_original("close", orig_close, fd);
+        return retval;
+    }
+
     init_libc_handle();
 
     if (orig_close == NULL) {
@@ -424,6 +473,11 @@ send(int fd, const void *buf, size_t len, int flags)
     static send_handle       orig_send = NULL;
 
     dd("calling my send");
+
+    if (is_whitelist()) {
+        call_original("send", orig_send, fd, buf, len, flags);
+        return retval;
+    }
 
     if ((get_mocking_type() & MOCKING_WRITES)
         && fd <= MAX_FD
@@ -482,6 +536,11 @@ read(int fd, void *buf, size_t len)
 
     dd("calling my read");
 
+    if (is_whitelist()) {
+        call_original("read", orig_read, fd, buf, len);
+        return retval;
+    }
+
     if ((get_mocking_type() & MOCKING_READS)
         && fd <= MAX_FD
         && polled_fds[fd]
@@ -538,6 +597,11 @@ recv(int fd, void *buf, size_t len, int flags)
 
     dd("calling my recv");
 
+    if (is_whitelist()) {
+        call_original("recv", orig_recv, fd, buf, len, flags);
+        return retval;
+    }
+
     if ((get_mocking_type() & MOCKING_READS)
         && fd <= MAX_FD
         && polled_fds[fd]
@@ -593,6 +657,12 @@ recvfrom(int fd, void *buf, size_t len, int flags, struct sockaddr *src_addr, so
     static recvfrom_handle   orig_recvfrom = NULL;
 
     dd("calling my recvfrom");
+
+    if (is_whitelist()) {
+        call_original("recvfrom", orig_recvfrom,
+                      fd, buf, len, flags, src_addr, addrlen);
+        return retval;
+    }
 
     if ((get_mocking_type() & MOCKING_READS)
         && fd <= MAX_FD
@@ -756,3 +826,126 @@ static int now() {
    return tv.tv_sec % (3600 * 24) + tv.tv_usec/1000;
 }
 
+
+/* Test if a function is whitelisted in the callstack */
+static int is_whitelist()
+{
+    const char          delimiters[] = "(+";
+    void                *buff[MAX_BACKTRACE];
+    char                **symbols;
+    int                 size;
+    int                 i;
+    char                *token;
+    ENTRY               e;
+    ENTRY               *ep = NULL;
+
+    if (whitelist_status == WHITELIST_UNSET) {
+        dd("initializing whitelist");
+        whitelist_status = WHITELIST_ERR;
+        get_whitelist();
+    }
+
+    if (whitelist_status != WHITELIST_OK) {
+        return 0;
+    }
+
+    size = backtrace(buff, MAX_BACKTRACE);
+
+    symbols = backtrace_symbols(buff, size);
+
+    for (i = 0; i < size; i++) {
+
+#if DDEBUG
+        fprintf(stderr, "\tsymbol: %s\n", symbols[i]);
+#endif
+
+        strtok(symbols[i], delimiters);
+        token = strtok(NULL, delimiters);
+
+        if (token && (*token == ')' || *token == '0')) {
+            /* symbol doesn't contain function name.
+             *   e.g : nginx/objs/nginx() [0x43299c],
+             *   or : mockeagain/mockeagain.so(+0x3563)
+             */
+            continue;
+        }
+
+#if DDEBUG
+        fprintf(stderr, "\tfunction: \"%s\"\n", token);
+#endif
+
+        e.key = token;
+        ep = hsearch(e, FIND);
+        if (ep != NULL) {
+            if (get_verbose_level()) {
+                fprintf(stderr, "mockeagain: whitelist:"
+                        " found function: \"%s\"", token);
+            }
+
+            dd();
+            return 1;
+        }
+
+    }
+
+    return 0;
+}
+
+
+/* Get the whitelist from the MOCKEAGAIN_WL env variable */
+static int
+get_whitelist()
+{
+    const char          delimiters[] = " ,";
+    char                *p;
+    char                *token;
+    ENTRY               e;
+    ENTRY               *ep = NULL;
+
+    p = getenv("MOCKEAGAIN_WL");
+    if (p == NULL || *p == '\0') {
+        dd("MOCKEAGAIN_WL env empty");
+        return 1;
+    }
+
+    token = strtok(p, delimiters);
+
+    if (!token) {
+        return 1;
+    }
+
+    if (hcreate(MAX_WHITELIST) == 0) {
+        fprintf(stderr, "mockeagain: whitelist:"
+                " Unable to create hash table of"
+                " %d elements\n", MAX_WHITELIST);
+        return 0;
+    }
+
+    whitelist_status = WHITELIST_OK;
+
+    while (token) {
+
+        e.key = token;
+        e.data = (void *) 1;
+
+        if (get_verbose_level()) {
+            fprintf(stderr, "mockeagain: whitelist:"
+                    " adding function \"%s\"\n", token);
+        }
+
+        ep = hsearch(e, ENTER);
+
+        if (ep == NULL) {
+            fprintf(stderr,
+                    "mockeagain: whitelist:"
+                    " unable to store entry \"%s\","
+                    " MAX_WHITELIST(%d) exceeded.\n",
+                    e.key, MAX_WHITELIST);
+            return 1;
+        }
+
+        token = strtok(NULL, delimiters);
+    }
+
+    return 1;
+}
