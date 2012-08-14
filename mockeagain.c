@@ -838,6 +838,7 @@ static int is_whitelist()
     char                *token;
     ENTRY               e;
     ENTRY               *ep = NULL;
+    int                 retval = 0;
 
     if (whitelist_status == WHITELIST_UNSET) {
         dd("initializing whitelist");
@@ -879,16 +880,17 @@ static int is_whitelist()
         if (ep != NULL) {
             if (get_verbose_level()) {
                 fprintf(stderr, "mockeagain: whitelist:"
-                        " found function: \"%s\"", token);
+                        " found function: \"%s\"\n", token);
             }
 
-            dd();
-            return 1;
+            retval = 1;
+            break;
         }
 
     }
 
-    return 0;
+    free(symbols);
+    return retval;
 }
 
 
