@@ -866,7 +866,11 @@ is_whitelisted()
         strtok(symbols[i], delimiters);
         token = strtok(NULL, delimiters);
 
-        if (token && (*token == ')' || *token == '0')) {
+        if (!token) {
+            continue;
+        }
+
+        if (*token == ')' || *token == '0') {
             /* symbol doesn't contain function name.
              *   e.g : nginx/objs/nginx() [0x43299c],
              *   or : mockeagain/mockeagain.so(+0x3563)
