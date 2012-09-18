@@ -315,7 +315,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
                     "1 of %llu bytes.\n", fd, (unsigned long long) len);
         }
 
-        if (pattern) {
+        if (pattern && new_iov[0].iov_len) {
             char          *p;
             size_t         len;
             char           c;
@@ -458,6 +458,58 @@ send(int fd, const void *buf, size_t len, int flags)
         if (get_verbose_level()) {
             fprintf(stderr, "mockeagain: mocking \"send\" on fd %d to emit "
                     "1 byte data only\n", fd);
+        }
+
+        if (pattern && len) {
+            char          *p;
+            size_t         len;
+            char           c;
+
+            c = *(char *) buf;
+
+            if (matchbufs[fd] == NULL) {
+
+                matchbufs[fd] = malloc(matchbuf_len);
+                if (matchbufs[fd] == NULL) {
+                    fprintf(stderr, "mockeagain: ERROR: failed to allocate memory.\n");
+                }
+
+                p = matchbufs[fd];
+                memset(p, 0, matchbuf_len);
+
+                p[0] = c;
+
+                len = 1;
+
+            } else {
+                p = matchbufs[fd];
+
+                len = strlen(p);
+
+                if (len < matchbuf_len - 1) {
+                    p[len] = c;
+                    len++;
+
+                } else {
+                    memmove(p, p + 1, matchbuf_len - 2);
+
+                    p[matchbuf_len - 2] = c;
+                }
+            }
+
+            /* test if the pattern matches the matchbuf */
+
+            dd("matchbuf: %.*s (len: %d)", (int) len, p,
+                    (int) matchbuf_len - 1);
+
+            if (len == matchbuf_len - 1 && strncmp(p, pattern, len) == 0) {
+                if (get_verbose_level()) {
+                    fprintf(stderr, "mockeagain: \"writev\" has found a match for "
+                            "the timeout pattern \"%s\" on fd %d.\n", pattern, fd);
+                }
+
+                snd_timeout_fds[fd] = 1;
+            }
         }
 
         retval = (*orig_send)(fd, buf, 1, flags);
