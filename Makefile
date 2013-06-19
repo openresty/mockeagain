@@ -1,3 +1,5 @@
+CC=gcc
+
 .PHONY: all clean
 
 all: mockeagain.so
