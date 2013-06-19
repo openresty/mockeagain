@@ -31,6 +31,7 @@
 static void *libc_handle = NULL;
 static short active_fds[MAX_FD + 1];
 static char  polled_fds[MAX_FD + 1];
+static char  written_fds[MAX_FD + 1];
 static char  weird_fds[MAX_FD + 1];
 static char  snd_timeout_fds[MAX_FD + 1];
 static char **matchbufs = NULL;
@@ -261,6 +262,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     if ((get_mocking_type() & MOCKING_WRITES)
         && fd <= MAX_FD
         && polled_fds[fd]
+        && written_fds[fd]
         && !(active_fds[fd] & POLLOUT))
     {
         if (get_verbose_level()) {
@@ -271,6 +273,8 @@ writev(int fd, const struct iovec *iov, int iovcnt)
         errno = EAGAIN;
         return -1;
     }
+
+    written_fds[fd] = 1;
 
     init_libc_handle();
 
@@ -407,6 +411,7 @@ close(int fd)
 
         active_fds[fd] = 0;
         polled_fds[fd] = 0;
+        written_fds[fd] = 0;
         snd_timeout_fds[fd] = 0;
         weird_fds[fd] = 0;
     }
@@ -428,6 +433,7 @@ send(int fd, const void *buf, size_t len, int flags)
     if ((get_mocking_type() & MOCKING_WRITES)
         && fd <= MAX_FD
         && polled_fds[fd]
+        && written_fds[fd]
         && !(active_fds[fd] & POLLOUT))
     {
         if (get_verbose_level()) {
@@ -438,6 +444,8 @@ send(int fd, const void *buf, size_t len, int flags)
         errno = EAGAIN;
         return -1;
     }
+
+    written_fds[fd] = 1;
 
     init_libc_handle();
 
