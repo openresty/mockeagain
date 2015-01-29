@@ -141,7 +141,7 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
     static poll_handle       orig_poll = NULL;
     struct pollfd           *p;
     int                      i;
-    int                      fd;
+    int                      fd = -1;
     int                      begin = 0;
     int                      elapsed = 0;
 
@@ -257,7 +257,7 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     struct iovec             new_iov[1] = { {NULL, 0} };
     const struct iovec      *p;
     int                      i;
-    size_t                   len;
+    size_t                   len = 0;
 
     if ((get_mocking_type() & MOCKING_WRITES)
         && fd <= MAX_FD
