@@ -74,11 +74,53 @@ typedef ssize_t (*recv_handle) (int sockfd, void *buf, size_t len,
 typedef ssize_t (*recvfrom_handle) (int sockfd, void *buf, size_t len,
     int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 
+typedef int (*accept4_handle) (int socket, struct sockaddr *address,
+    socklen_t *address_len, int flags);
+
 
 static int get_verbose_level();
 static void init_matchbufs();
 static int now();
 static int get_mocking_type();
+
+
+int
+accept4(int socket, struct sockaddr *address,
+    socklen_t *address_len, int flags)
+{
+    int fd;
+
+    static accept4_handle       orig_accept4 = NULL;
+
+    init_libc_handle();
+
+    if (orig_accept4 == NULL) {
+        orig_accept4 = dlsym(libc_handle, "accept4");
+        if (orig_accept4 == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying accept4: "
+                    "%s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    fd = orig_accept4(socket, address, address_len, flags);
+    if (fd < 0) {
+        return fd;
+    }
+
+    if (flags & SOCK_NONBLOCK) {
+        if (matchbufs && matchbufs[fd]) {
+            free(matchbufs[fd]);
+            matchbufs[fd] = NULL;
+        }
+
+        active_fds[fd] = 0;
+        polled_fds[fd] = 1;
+        snd_timeout_fds[fd] = 0;
+    }
+
+    return fd;
+}
 
 
 int socket(int domain, int type, int protocol)
@@ -258,6 +300,15 @@ writev(int fd, const struct iovec *iov, int iovcnt)
     const struct iovec      *p;
     int                      i;
     size_t                   len = 0;
+
+    if ((get_mocking_type() & MOCKING_WRITES)
+        && get_verbose_level()
+        && fd <= MAX_FD)
+    {
+        fprintf(stderr, "mockeagain: writev(%d): polled=%d, written=%d, "
+                "active=%d\n", fd, (int) polled_fds[fd], (int) written_fds[fd],
+                (int) active_fds[fd]);
+    }
 
     if ((get_mocking_type() & MOCKING_WRITES)
         && fd <= MAX_FD
