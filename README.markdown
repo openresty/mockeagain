@@ -200,7 +200,7 @@ Copyright & License
 
 This module is licenced under the BSD license.
 
-Copyright (C) 2012-2014 by Yichun "agentzh" Zhang (章亦春) <agentzh@gmail.com>, CloudFlare Inc.
+Copyright (C) 2012-2016 by Yichun "agentzh" Zhang (章亦春) <agentzh@gmail.com>, CloudFlare Inc.
 
 All rights reserved.
 
