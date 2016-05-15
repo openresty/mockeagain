@@ -1,4 +1,4 @@
-CC=gcc
+CC?=gcc
 COPTS=-O -g -Wall -Werror
 
 .PHONY: all clean
