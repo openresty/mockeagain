@@ -74,8 +74,10 @@ typedef ssize_t (*recv_handle) (int sockfd, void *buf, size_t len,
 typedef ssize_t (*recvfrom_handle) (int sockfd, void *buf, size_t len,
     int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 
+#if __linux__
 typedef int (*accept4_handle) (int socket, struct sockaddr *address,
     socklen_t *address_len, int flags);
+#endif
 
 
 static int get_verbose_level();
@@ -84,6 +86,7 @@ static int now();
 static int get_mocking_type();
 
 
+#if __linux__
 int
 accept4(int socket, struct sockaddr *address,
     socklen_t *address_len, int flags)
@@ -121,6 +124,7 @@ accept4(int socket, struct sockaddr *address,
 
     return fd;
 }
+#endif
 
 
 int socket(int domain, int type, int protocol)
