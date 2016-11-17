@@ -8,3 +8,4 @@ reindex
 tags
 genmobi.sh
 *.mobi
+t/runner
