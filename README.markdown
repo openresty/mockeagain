@@ -1,6 +1,8 @@
 Description
 ===========
 
+[![Build Status](https://travis-ci.org/openresty/mockeagain.svg?branch=master)](https://travis-ci.org/openresty/mockeagain)
+
 This tool emulates an ideally slow network by mocking the
 polling and read/write syscalls exposed by glibc via the
 LD_PRELOAD technique.
@@ -131,6 +133,33 @@ Reading API
 * read
 * recv
 * recvfrom
+
+Tests
+=====
+`mockeagain` has a simple testing suite.
+
+To run tests, simply type `make test`. Note that a working standard Python is needed to run the tests.
+
+To run tests with Valgrind, run `make test VALGRIND=1` instead.
+
+To write a new test:
+
+Copy one of the existing test cases to get started. Test case files are
+always named in the format of `###-name.c`. You need to implement minimum the `run_test()`
+function. `run_test()` function takes a single parameter, `fd` which refers to a valid TCP socket
+that has been connected to an echo server and set to non-blocking mode. You are
+expected to return zero when all tests passed and non zero when one or more tests failed.
+
+Your test case is responsible for enabling read/write mocks. There is a helper
+function `set_mocking()` that accepts a combination of `MOCKING_READS` and
+`MOCKING_WRITES` to enable read and/or write mocking. There is another
+function `set_write_timeout_pattern()` that sets the `MOCKEAGAIN_WRITE_TIMEOUT_PATTERN`
+environment variable.
+
+*Note:* In general, `set_mocking()` and `set_write_timeout_pattern()` should
+be called before invocation of any mocked functions above. This is due to
+the fact that `mockeagain` will lazy load those settings and cache them forever
+afterwards.
 
 TODO
 ====
