@@ -7,6 +7,14 @@ int run_test(int fd) {
     char         rcvbuf[len];
     struct pollfd pfd;
 
+#if __linux__
+    int epollfd;
+    struct epoll_event eev = {EPOLLIN|EPOLLOUT, {(void *) buf}};
+    struct epoll_event events[10];
+    epollfd = epoll_create(1);
+    assert(epollfd >= 0);
+#endif
+
     pfd.fd = fd;
     pfd.events = POLLIN;
 
@@ -56,6 +64,48 @@ int run_test(int fd) {
     n = recvfrom(fd, rcvbuf, len, 0, NULL, NULL);
     assert(n == -1);
     assert(errno == EAGAIN);
+
+#if __linux__
+    n = recv(fd, rcvbuf, len, 0);
+    assert(n == -1);
+    assert(errno == EAGAIN);
+
+    assert(!epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &eev));
+
+    n = recv(fd, rcvbuf, len, 0);
+    assert(n == -1);
+    assert(errno == EAGAIN);
+
+    assert(epoll_wait(epollfd, events,
+                      sizeof(events) / sizeof(events[0]), 0) == 1);
+    assert(events[0].events & EPOLLIN);
+    assert(events[0].data.ptr == buf);
+
+    /* simulated ET */
+    assert(epoll_wait(epollfd, events,
+                      sizeof(events) / sizeof(events[0]), 0) == 0);
+
+    n = read(fd, rcvbuf, len);
+    assert(n == 1);
+
+    n = recvfrom(fd, rcvbuf, len, 0, NULL, NULL);
+    assert(n == -1);
+    assert(errno == EAGAIN);
+
+    assert(epoll_wait(epollfd, events,
+                      sizeof(events) / sizeof(events[0]), 0) == 1);
+    assert(events[0].events & EPOLLIN);
+    assert(events[0].data.ptr == buf);
+
+    n = read(fd, rcvbuf, len);
+    assert(n == 1);
+
+    n = recvfrom(fd, rcvbuf, len, 0, NULL, NULL);
+    assert(n == -1);
+    assert(errno == EAGAIN);
+
+    close(epollfd);
+#endif
 
     return EXIT_SUCCESS;
 }
