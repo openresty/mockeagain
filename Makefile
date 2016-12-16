@@ -1,4 +1,4 @@
-CC=gcc
+CC?=gcc
 COPTS=-O -g -Wall -Werror
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 TESTENV=LD_PRELOAD=$(ROOT_DIR)/mockeagain.so MOCKEAGAIN_VERBOSE=1
