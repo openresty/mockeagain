@@ -27,6 +27,10 @@
 
 #define MAX_FD 1024
 
+#ifndef SOCK_NONBLOCK
+#include <fcntl.h>
+#define SOCK_NONBLOCK O_NONBLOCK
+#endif
 
 static void *libc_handle = NULL;
 static short active_fds[MAX_FD + 1];
