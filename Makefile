@@ -1,8 +1,8 @@
-CC=gcc
+CC?=gcc
 COPTS=-O -g -Wall -Werror
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-TESTENV=LD_PRELOAD=$(ROOT_DIR)/mockeagain.so MOCKEAGAIN_VERBOSE=1
-ALL_TESTS=$(shell find t/ -regextype sed -regex 't/[0-9]\{3\}.*\.c')
+TESTENV=LD_PRELOAD=$(ROOT_DIR)/mockeagain.so DYLD_INSERT_LIBRARIES=$(ROOT_DIR)/mockeagain.so DYLD_FORCE_FLAT_NAMESPACE=1 MOCKEAGAIN_VERBOSE=1
+ALL_TESTS=$(shell find t -name "[0-9]*.c")
 VALGRIND:=0
 
 .PHONY: all test clean
