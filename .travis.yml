@@ -6,14 +6,15 @@ language: c
 
 compiler:
   - gcc
-  - clang
 
 addons:
   apt:
     packages: [ python ]
 
-cache:
-  apt: true
+matrix:
+  include:
+    - os: osx
+      compiler: clang
 
 script:
   - make test

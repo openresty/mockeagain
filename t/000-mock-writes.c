@@ -1,4 +1,5 @@
 #include "test_case.h"
+#include <sys/uio.h>
 
 int run_test(int fd) {
     int n;
