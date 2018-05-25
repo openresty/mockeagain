@@ -14,6 +14,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#if __linux__
+#include <sys/eventfd.h>
+#include <sys/signalfd.h>
+#endif
 
 #if DDEBUG
 #   define dd(...) \
@@ -33,6 +37,7 @@ static short active_fds[MAX_FD + 1];
 static char  polled_fds[MAX_FD + 1];
 static char  written_fds[MAX_FD + 1];
 static char  weird_fds[MAX_FD + 1];
+static char  blacklist_fds[MAX_FD + 1];
 static char  snd_timeout_fds[MAX_FD + 1];
 static char **matchbufs = NULL;
 static size_t matchbuf_len = 0;
@@ -77,6 +82,10 @@ typedef ssize_t (*recvfrom_handle) (int sockfd, void *buf, size_t len,
 #if __linux__
 typedef int (*accept4_handle) (int socket, struct sockaddr *address,
     socklen_t *address_len, int flags);
+
+typedef int (*signalfd_handle) (int fd, const sigset_t *mask, int flags);
+
+typedef int (*eventfd_handle) (unsigned int initval, int flags);
 #endif
 
 
@@ -121,6 +130,59 @@ accept4(int socket, struct sockaddr *address,
         polled_fds[fd] = 1;
         snd_timeout_fds[fd] = 0;
     }
+
+    return fd;
+}
+
+
+int signalfd(int fd, const sigset_t *mask, int flags)
+{
+    static signalfd_handle       orig_signalfd = NULL;
+
+    init_libc_handle();
+
+    if (orig_signalfd == NULL) {
+        orig_signalfd = dlsym(libc_handle, "signalfd");
+        if (orig_signalfd == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying"
+                    " signalfd: %s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    fd = orig_signalfd(fd, mask, flags);
+    if (fd < 0) {
+        return fd;
+    }
+
+    blacklist_fds[fd] = 1;
+
+    return fd;
+}
+
+
+int eventfd(unsigned int initval, int flags)
+{
+    int                         fd;
+    static eventfd_handle       orig_eventfd = NULL;
+
+    init_libc_handle();
+
+    if (orig_eventfd == NULL) {
+        orig_eventfd = dlsym(libc_handle, "eventfd");
+        if (orig_eventfd == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying"
+                    " eventfd: %s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    fd = orig_eventfd(initval, flags);
+    if (fd < 0) {
+        return fd;
+    }
+
+    blacklist_fds[fd] = 1;
 
     return fd;
 }
@@ -242,6 +304,10 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
                     retval--;
                     continue;
                 }
+            }
+
+            if (blacklist_fds[fd]) {
+                continue;
             }
 
             active_fds[fd] = p->revents;
@@ -469,6 +535,7 @@ close(int fd)
         written_fds[fd] = 0;
         snd_timeout_fds[fd] = 0;
         weird_fds[fd] = 0;
+        blacklist_fds[fd] = 0;
     }
 
     retval = (*orig_close)(fd);
