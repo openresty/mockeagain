@@ -85,7 +85,15 @@ typedef int (*accept4_handle) (int socket, struct sockaddr *address,
 
 typedef int (*signalfd_handle) (int fd, const sigset_t *mask, int flags);
 
+#if (defined(__GLIBC__) && __GLIBC__ <= 2) && \
+    (defined(__GLIBC_MINOR__) && __GLIBC_MINOR__ < 21)
+    /* glibc < 2.21 used different signature */
+typedef int (*eventfd_handle) (int initval, int flags);
+
+#else
 typedef int (*eventfd_handle) (unsigned int initval, int flags);
+#endif
+
 #endif
 
 
@@ -165,7 +173,13 @@ int signalfd(int fd, const sigset_t *mask, int flags)
 }
 
 
+#if (defined(__GLIBC__) && __GLIBC__ <= 2) && \
+    (defined(__GLIBC_MINOR__) && __GLIBC_MINOR__ < 21)
+    /* glibc < 2.21 used different signature */
+int eventfd(int initval, int flags)
+#else
 int eventfd(unsigned int initval, int flags)
+#endif
 {
     int                         fd;
     static eventfd_handle       orig_eventfd = NULL;
