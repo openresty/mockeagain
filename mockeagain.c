@@ -14,6 +14,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#if __linux__
+#include <sys/eventfd.h>
+#include <sys/signalfd.h>
+#endif
 
 #if DDEBUG
 #   define dd(...) \
@@ -33,6 +37,7 @@ static short active_fds[MAX_FD + 1];
 static char  polled_fds[MAX_FD + 1];
 static char  written_fds[MAX_FD + 1];
 static char  weird_fds[MAX_FD + 1];
+static char  blacklist_fds[MAX_FD + 1];
 static char  snd_timeout_fds[MAX_FD + 1];
 static char **matchbufs = NULL;
 static size_t matchbuf_len = 0;
@@ -77,6 +82,18 @@ typedef ssize_t (*recvfrom_handle) (int sockfd, void *buf, size_t len,
 #if __linux__
 typedef int (*accept4_handle) (int socket, struct sockaddr *address,
     socklen_t *address_len, int flags);
+
+typedef int (*signalfd_handle) (int fd, const sigset_t *mask, int flags);
+
+#if (defined(__GLIBC__) && __GLIBC__ <= 2) && \
+    (defined(__GLIBC_MINOR__) && __GLIBC_MINOR__ < 21)
+    /* glibc < 2.21 used different signature */
+typedef int (*eventfd_handle) (int initval, int flags);
+
+#else
+typedef int (*eventfd_handle) (unsigned int initval, int flags);
+#endif
+
 #endif
 
 
@@ -121,6 +138,73 @@ accept4(int socket, struct sockaddr *address,
         polled_fds[fd] = 1;
         snd_timeout_fds[fd] = 0;
     }
+
+    return fd;
+}
+
+
+int signalfd(int fd, const sigset_t *mask, int flags)
+{
+    static signalfd_handle       orig_signalfd = NULL;
+
+    init_libc_handle();
+
+    if (orig_signalfd == NULL) {
+        orig_signalfd = dlsym(libc_handle, "signalfd");
+        if (orig_signalfd == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying"
+                    " signalfd: %s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    fd = orig_signalfd(fd, mask, flags);
+    if (fd < 0) {
+        return fd;
+    }
+
+    if (get_verbose_level()) {
+        fprintf(stderr, "mockeagain: signalfd: blacklist fd %d\n", fd);
+    }
+
+    blacklist_fds[fd] = 1;
+
+    return fd;
+}
+
+
+#if (defined(__GLIBC__) && __GLIBC__ <= 2) && \
+    (defined(__GLIBC_MINOR__) && __GLIBC_MINOR__ < 21)
+    /* glibc < 2.21 used different signature */
+int eventfd(int initval, int flags)
+#else
+int eventfd(unsigned int initval, int flags)
+#endif
+{
+    int                         fd;
+    static eventfd_handle       orig_eventfd = NULL;
+
+    init_libc_handle();
+
+    if (orig_eventfd == NULL) {
+        orig_eventfd = dlsym(libc_handle, "eventfd");
+        if (orig_eventfd == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying"
+                    " eventfd: %s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    fd = orig_eventfd(initval, flags);
+    if (fd < 0) {
+        return fd;
+    }
+
+    if (get_verbose_level()) {
+        fprintf(stderr, "mockeagain: eventfd: blacklist fd %d\n", fd);
+    }
+
+    blacklist_fds[fd] = 1;
 
     return fd;
 }
@@ -242,6 +326,15 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
                     retval--;
                     continue;
                 }
+            }
+
+            if (blacklist_fds[fd]) {
+                if (get_verbose_level()) {
+                    fprintf(stderr, "mockeagain: poll: skip fd %d because it "
+                            "is in blacklist\n", fd);
+                }
+
+                continue;
             }
 
             active_fds[fd] = p->revents;
@@ -469,6 +562,7 @@ close(int fd)
         written_fds[fd] = 0;
         snd_timeout_fds[fd] = 0;
         weird_fds[fd] = 0;
+        blacklist_fds[fd] = 0;
     }
 
     retval = (*orig_close)(fd);
