@@ -155,6 +155,10 @@ int signalfd(int fd, const sigset_t *mask, int flags)
         return fd;
     }
 
+    if (get_verbose_level()) {
+        fprintf(stderr, "mockeagain: signalfd: blacklist fd %d\n", fd);
+    }
+
     blacklist_fds[fd] = 1;
 
     return fd;
@@ -180,6 +184,10 @@ int eventfd(unsigned int initval, int flags)
     fd = orig_eventfd(initval, flags);
     if (fd < 0) {
         return fd;
+    }
+
+    if (get_verbose_level()) {
+        fprintf(stderr, "mockeagain: eventfd: blacklist fd %d\n", fd);
     }
 
     blacklist_fds[fd] = 1;
@@ -307,6 +315,11 @@ poll(struct pollfd *ufds, nfds_t nfds, int timeout)
             }
 
             if (blacklist_fds[fd]) {
+                if (get_verbose_level()) {
+                    fprintf(stderr, "mockeagain: poll: skip fd %d because it "
+                            "is in blacklist\n", fd);
+                }
+
                 continue;
             }
 
