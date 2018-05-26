@@ -1,7 +1,6 @@
 CC?=gcc
 COPTS=-O -g -Wall -Werror
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-TESTENV=LD_PRELOAD=$(ROOT_DIR)/mockeagain.so DYLD_INSERT_LIBRARIES=$(ROOT_DIR)/mockeagain.so DYLD_FORCE_FLAT_NAMESPACE=1 MOCKEAGAIN_VERBOSE=1
 ALL_TESTS=$(shell find t -name "[0-9]*.c")
 VALGRIND:=0
 
@@ -14,11 +13,10 @@ all: mockeagain.so
 	$(CC) $(COPTS) -fPIC -shared $< -o $@
 
 test: all $(ALL_TESTS)
-	export $(TESTENV); \
 	for t in $(ALL_TESTS); do \
 		$(CC) $(COPTS) -o ./t/runner $$t ./t/runner.c ./t/test_case.c \
 		|| exit 1; \
-		python ./t/echo_server.py ./t/runner $(VALGRIND) \
+		python ./t/echo_server.py ./t/runner $(VALGRIND) $(ROOT_DIR)/mockeagain.so \
 		&& echo "Test case $$t passed" || exit 1; \
 	done
 
