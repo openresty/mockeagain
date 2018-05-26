@@ -600,7 +600,7 @@ read(int fd, void *buf, size_t len)
     if ((get_mocking_type() & MOCKING_READS)
         && fd <= MAX_FD
         && polled_fds[fd]
-        && !(active_fds[fd] & POLLIN))
+        && !(active_fds[fd] & (POLLIN | POLLHUP)))
     {
         if (get_verbose_level()) {
             fprintf(stderr, "mockeagain: mocking \"read\" on fd %d to "
