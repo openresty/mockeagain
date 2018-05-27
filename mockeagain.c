@@ -19,6 +19,10 @@
 #include <sys/signalfd.h>
 #endif
 
+#if __linux__
+#include <sys/epoll.h>
+#endif
+
 #if DDEBUG
 #   define dd(...) \
         fprintf(stderr, "mockeagain: "); \
@@ -31,6 +35,10 @@
 
 #define MAX_FD 1024
 
+typedef struct {
+    int          fd;
+    epoll_data_t data;
+} epoll_ctx_t;
 
 static void *libc_handle = NULL;
 static short active_fds[MAX_FD + 1];
@@ -39,6 +47,7 @@ static char  written_fds[MAX_FD + 1];
 static char  weird_fds[MAX_FD + 1];
 static char  blacklist_fds[MAX_FD + 1];
 static char  snd_timeout_fds[MAX_FD + 1];
+static epoll_ctx_t epoll_context[MAX_FD + 1];
 static char **matchbufs = NULL;
 static size_t matchbuf_len = 0;
 static const char *pattern = NULL;
@@ -96,12 +105,199 @@ typedef int (*eventfd_handle) (unsigned int initval, int flags);
 
 #endif
 
+#if __linux__
+typedef int (*epoll_ctl_handle) (int epfd, int op, int fd,
+    struct epoll_event *event);
+
+typedef int (*epoll_wait_handle) (int epfd, struct epoll_event *events,
+    int maxevents, int timeout);
+#endif
+
 
 static int get_verbose_level();
 static void init_matchbufs();
 static int now();
 static int get_mocking_type();
 
+#if __linux__
+
+int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)
+{
+    static void              *libc_handle;
+    static epoll_ctl_handle   orig_epoll_ctl = NULL;
+
+    dd("calling my epoll_ctl");
+
+    init_libc_handle();
+
+    if (orig_epoll_ctl == NULL) {
+        orig_epoll_ctl = dlsym(libc_handle, "epoll_ctl");
+        if (orig_epoll_ctl == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying"
+                    " epoll_ctl: %s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    if (op & (EPOLL_CTL_ADD|EPOLL_CTL_MOD)) {
+        epoll_context[fd].fd = fd;
+        epoll_context[fd].data = event->data;
+
+        /* clear EPOLLET */
+        event->events &= ~EPOLLET;
+        event->data.fd = fd;
+    }
+
+    return (*orig_epoll_ctl)(epfd, op, fd, event);
+}
+
+/**
+ * epoll_wait that simulates ET behavior
+ */
+int epoll_wait(int epfd, struct epoll_event *events,
+    int maxevents, int timeout)
+{
+    static void              *libc_handle;
+    int                       retval, fd, i;
+    static epoll_wait_handle  orig_epoll_wait = NULL;
+    int                       begin = 0;
+    int                       elapsed = 0;
+    struct timeval            tm;
+    struct epoll_event       *ev;
+    int                       evi = 0;
+
+    dd("calling my epoll_wait");
+
+    init_libc_handle();
+
+    if (orig_epoll_wait == NULL) {
+        orig_epoll_wait = dlsym(libc_handle, "epoll_wait");
+        if (orig_epoll_wait == NULL) {
+            fprintf(stderr, "mockeagain: could not find the underlying"
+                    " epoll_wait: %s\n", dlerror());
+            exit(1);
+        }
+    }
+
+    init_matchbufs();
+
+    ev = malloc(sizeof(struct epoll_event) * maxevents);
+    if (!ev) {
+        fprintf(stderr, "mockeagain: could not allocate memory");
+        exit(1);
+    }
+
+    dd("calling the original epoll_wait");
+
+    if (pattern) {
+        begin = now();
+    }
+
+    retval = (*orig_epoll_wait)(epfd, ev, maxevents, timeout);
+
+    if (pattern) {
+        elapsed = now() - begin;
+    }
+
+    if (retval > 0) {
+        for (i = 0; i < retval; i++) {
+            fd = ev[i].data.fd;
+            if (fd > MAX_FD || weird_fds[fd]) {
+                dd("skipping fd %d", fd);
+                continue;
+            }
+
+            if (pattern && (ev[i].events & EPOLLOUT)
+                        && snd_timeout_fds[fd]) {
+
+                if (get_verbose_level()) {
+                    fprintf(stderr, "mockeagain: epoll_wait: should suppress"
+                            " write event on fd %d.\n", fd);
+                }
+
+                ev[i].events &= ~EPOLLOUT;
+            }
+
+            /* simulate ET behavior */
+            if (!written_fds[fd] || active_fds[fd] & POLLOUT) {
+                ev[i].events &= ~EPOLLOUT;
+            }
+
+            if (active_fds[fd] & POLLIN) {
+                ev[i].events &= ~EPOLLIN;
+            }
+
+            if (ev[i].events == 0) {
+                retval--;
+                continue;
+            }
+
+            /* copy to application */
+            events[evi].data = epoll_context[fd].data;
+            events[evi].events = ev[i].events;
+
+
+            if (events[evi].events & EPOLLIN) {
+                active_fds[fd] |= POLLIN;
+            }
+
+            if (events[evi].events & EPOLLOUT) {
+                active_fds[fd] |= POLLOUT;
+            }
+
+            polled_fds[fd] = 1;
+
+            if (get_verbose_level()) {
+                fprintf(stderr, "mockeagain: epoll_wait: fd %d polled with"
+                        "events %d\n", fd, events[evi].events);
+            }
+
+            evi++;
+        }
+
+        free(ev);
+
+        if (retval == 0) {
+            if (get_verbose_level()) {
+                fprintf(stderr, "mockeagain: epoll_wait: emulating timeout on "
+                        "fd %d.\n", fd);
+            }
+
+            if (timeout < 0) {
+                tm.tv_sec = 3600 * 24;
+                tm.tv_usec = 0;
+
+                if (get_verbose_level()) {
+                    fprintf(stderr, "mockeagain: epoll_wait: sleeping 1 day "
+                            "on fd %d.\n", fd);
+                }
+
+                select(0, NULL, NULL, NULL, &tm);
+
+            } else {
+
+                if (elapsed < timeout) {
+                    int     diff;
+
+                    diff = timeout - elapsed;
+
+                    tm.tv_sec = diff / 1000;
+                    tm.tv_usec = diff % 1000 * 1000;
+
+                    if (get_verbose_level()) {
+                        fprintf(stderr, "mockeagain: epoll_wait: sleeping %d"
+                                "ms on fd %d.\n", diff, fd);
+                    }
+
+                    select(0, NULL, NULL, NULL, &tm);
+                }
+            }
+        }
+    }
+
+    return retval;
+}
+#endif
 
 #if __linux__
 int

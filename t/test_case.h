@@ -3,6 +3,11 @@
 
 #define _GNU_SOURCE
 #include <sys/socket.h>
+
+#if __linux__
+#include <sys/epoll.h>
+#endif
+
 #include <stdlib.h>
 #include <poll.h>
 #include <signal.h>

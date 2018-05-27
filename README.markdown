@@ -11,15 +11,15 @@ By preloading this dynamic library to your network server
 process, it will intercept the "poll", "close", "send", and "writev"
 syscalls, only allow the writing syscalls to actually write a single byte
 at a time (without flushing), and returns EAGAIN until another
-"poll" called on the current socket fd.
+"poll" or "epoll_wait" called on the current socket fd.
 
 Similarly, one can configure this library to intercept the "read",
 "recv", "recvfrom" calls on the C level to emulate extremely slow
 reading operations either with or without slow writes at the same
 time.
 
-The socket fd must be called first by a "poll" call to mark
-itself to this tool as an "active fd" and trigger subsequence
+The socket fd must be called first by a "poll" or "epoll_wait" call to mark
+itself to this tool as an "active fd" and trigger subsequent
 the writing syscalls to behave differently.
 
 With this tool, one can emulate extreme network conditions
@@ -42,9 +42,13 @@ On *BSD, it's often required to run the command "gmake".
 Usage
 =====
 
-For now, only "poll" syscall and slow writing mocking are supported.
+For now, only "poll" and "epoll" syscall and slow writing mocking are
+supported.
 
 Here we take Nginx as an example:
+
+poll
+----
 
 1. Ensure that you have passed the --with-poll_module option while
    invoking nginx's configure script to build nginx.
@@ -67,6 +71,11 @@ and also have the following line in your nginx.conf:
 4. Run your Nginx this way:
 
     MOCKEAGAIN=w LD_PRELOAD=/path/to/mockeagain.so /path/to/nginx ...
+
+epoll
+-----
+
+Same as above, except in step 2, replace with `use epoll;` instead.
 
 Environments
 ============
@@ -124,6 +133,8 @@ Glibc API Mocked
 
 Event API
 * poll
+* epoll_ctl
+* epoll_wait
 
 Writing API
 * writev
@@ -133,6 +144,22 @@ Reading API
 * read
 * recv
 * recvfrom
+
+Limitations
+===================
+
+epoll
+-----
+`epoll` implementation supports only one epoll instance per process. If you
+attempt to use this tool with multiple `epoll` instances inside the same
+process, it will get confused and yield incorrect results.
+
+`epoll` implementation also assumes that file descriptors are always registered
+with the `EPOLLET` (edge triggering) flag.
+
+The implementation might be improved later to remove those limitations. However
+it is not high priority as the current implementation works well with `nginx`'s
+event system.
 
 Tests
 =====
@@ -165,7 +192,7 @@ TODO
 ====
 
 * add support for write, sendto, and more writing syscalls.
-* add support for other event interfaces like epoll, select, kqueue, and more.
+* add support for other event interfaces like select, kqueue, and more.
 
 Success Stories
 ===============
